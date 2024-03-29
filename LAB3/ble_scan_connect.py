@@ -35,13 +35,21 @@ for svc in dev.services:
     print (str(svc))
 #
 try:
-    testService = dev.getServiceByUUID(UUID(0xfff0))
-    for ch in testService.getCharacteristics():
-        print (str(ch))
+    testService = dev.getServiceByUUID(UUID("0000fff0-0000-1000-8000-00805f9b34fb"))
+    # for ch in testService.getCharacteristics():
+    #     print (str(ch))
 #
-    ch = dev.getCharacteristics(uuid=UUID(0xfff1))[0]
+    ch = testService.getCharacteristics(UUID("0000fff2-0000-1000-8000-00805f9b34fb"))[0]
     if (ch.supportsRead()):
         print (ch.read())
 #
+    for desriptor in ch.getDescriptors():
+        if (desriptor.uuid == 0x2902):
+            CCCD_handle = desriptor.handle
+            
+            # set CCCD value
+            dev.writeCharacteristic(
+                CCCD_handle, bytes([0, 2]), withResponse=True)
+
 finally:
     dev.disconnect()
