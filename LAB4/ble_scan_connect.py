@@ -66,10 +66,10 @@ try:
     cccd = ch_Btn.valHandle + 1
     
     if NOTIFIABLE:
-        dev.writeCharacteristic(cccd, b"\x01\x00") 
+        dev.writeCharacteristic(cccd, bytes([1, 0])) 
         print("Enable notifications")
     if INDICATIBLE:
-        dev.writeCharacteristic(cccd, b"\x02\x00")
+        dev.writeCharacteristic(cccd, bytes([2, 0]))
         print("Enable indications")
     
     led = False
