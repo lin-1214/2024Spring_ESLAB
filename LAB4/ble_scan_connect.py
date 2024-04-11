@@ -50,20 +50,20 @@ for service in dev.services:
     print(str(service))
 
 # Btn service
-BtnService= dev.getServiceByUUID(UUID(0x1820))
+BtnService= dev.getServiceByUUID(UUID(0xAAAA))
 for ch in BtnService.getCharacteristics():
     print(str(ch))
     
-ch_Btn = dev.getCharacteristics(uuid=UUID(0x1821))[0]
+ch_Btn = dev.getCharacteristics(uuid=UUID(0xBBBB))[0]
 print("Button service...")
 print(ch_Btn.read())
 
 # LED service
-LEDService= dev.getServiceByUUID(UUID(0x1822))
+LEDService= dev.getServiceByUUID(UUID(0xCCCC))
 for ch in LEDService.getCharacteristics():
     print(str(ch))
     
-ch_LED = dev.getCharacteristics(uuid=UUID(0x1823))[0]
+ch_LED = dev.getCharacteristics(uuid=UUID(0xDDDD))[0]
 print("LED service...")
 print(ch_LED.read())
 

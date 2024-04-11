@@ -15,6 +15,7 @@ There are 7 files in the repo which is mbed_app.json, main.cpp, ButtonService.h,
     * Place ble_scan_connect.py into RPi
 
 ## 3. build and run the application on mbed-os
+![image info](./img/advertising.png)
 Now the mbed-os is advertising. We can also check whether the LED is blinking on STM32L4.
 
 ## 4. run ble_scan_connect.py
