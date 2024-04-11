@@ -1,78 +1,84 @@
 from bluepy.btle import Peripheral, UUID
 from bluepy.btle import Scanner, DefaultDelegate
 
+NOTIFIABLE = False
+INDICATIBLE = True
+
 class ScanDelegate(DefaultDelegate):
     def __init__(self):
         DefaultDelegate.__init__(self)
+
     def handleDiscovery(self, dev, isNewDev, isNewData):
         if isNewDev:
             print("Discovered device", dev.addr)
         elif isNewData:
             print("Received new data from", dev.addr)
-               
-class ServiceDelegate(DefaultDelegate):
+
+
+class serviceDelegate(DefaultDelegate):
     def __init__(self):
         DefaultDelegate.__init__(self)
-    def handleNotification(self, ch, notificationData):
-        print("Notification received: %s"% notificationData)
+
+    def handleNotification(self, ch, data):
+        print("Received notification: %s" % data)
 
 def blink(led, ch):
-    if not led:
+    if led==False:
         ch.write(b'1')
+        led = True
     else:
         ch.write(b'0')
-    
-    return not led
+        led = False
+    return led
+
 
 scanner = Scanner().withDelegate(ScanDelegate())
 devices = scanner.scan(10.0)
-n=0
+n = 0
 addr = []
 for dev in devices:
-    print("%d: Device %s (%s), RSSI=%d dB" % (n, dev.addr, dev.addrType, dev.rssi))
+    print("%d: Device %s (%s), RSSI=%d dB" %
+          (n, dev.addr, dev.addrType, dev.rssi))
     addr.append(dev.addr)
     n += 1
-
     for (adtype, desc, value) in dev.getScanData():
         print("  %s = %s" % (desc, value))
-        
+
 number = input('Enter your device number: ')
 number = int(number)
 print('Device', number)
-print(addr[number])
+print(list(devices)[number].addr)
 
 print("Connecting...")
 dev = Peripheral(list(devices)[number].addr, 'random')
-
-dev.setDelegate(ServiceDelegate())
-print("Services connected: ")
+dev.setDelegate(serviceDelegate())
 for service in dev.services:
     print(str(service))
 
-# Btn service
-BtnService= dev.getServiceByUUID(UUID(0xAAAA))
-for ch in BtnService.getCharacteristics():
-    print(str(ch))
+try:
+    BtnService= dev.getServiceByUUID(UUID(0xa000))
+    ch_Btn = dev.getCharacteristics(uuid=UUID(0xa001))[0]
+
+    LEDService= dev.getServiceByUUID(UUID(0xa002))
+    ch_LED = dev.getCharacteristics(uuid=UUID(0xa003))[0]
+ 
+    print(ch_Btn.valHandle)
+    cccd = ch_Btn.valHandle + 1
     
-ch_Btn = dev.getCharacteristics(uuid=UUID(0xBBBB))[0]
-print("Button service...")
-print(ch_Btn.read())
-
-# LED service
-LEDService= dev.getServiceByUUID(UUID(0xCCCC))
-for ch in LEDService.getCharacteristics():
-    print(str(ch))
+    if NOTIFIABLE:
+        dev.writeCharacteristic(cccd, b"\x01\x00") 
+        print("Enable notifications")
+    if INDICATIBLE:
+        dev.writeCharacteristic(cccd, b"\x02\x00")
+        print("Enable indications")
     
-ch_LED = dev.getCharacteristics(uuid=UUID(0xDDDD))[0]
-print("LED service...")
-print(ch_LED.read())
+    led = False
+    while True:
+        led=blink(led, ch_LED)
+        if dev.waitForNotifications(1.0):
+            # handleNotification() was called
+            continue
+        print("Waiting...")
 
-
-
-while True:
-    led=blink(False, ch_LED)
-    if dev.waitForNotifications(1.0):
-        continue
-    print("Waiting for notification...")
-
-dev.disconnect()
+finally:
+    dev.disconnect()
