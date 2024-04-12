@@ -1,84 +1,72 @@
 from bluepy.btle import Peripheral, UUID
 from bluepy.btle import Scanner, DefaultDelegate
+import sys
+import select
+import time
 
-NOTIFIABLE = False
-INDICATIBLE = True
+HEART_RATE_SERVICE_UUID = UUID("180D")
+HEART_RATE_MEASUREMENT_CHAR_UUID = UUID("2A37")
+BUTTON_SERVICE_UUID = UUID("A000")
+BUTTON_STATE_CHARACTERISTIC_UUID = UUID("A001")
 
-class ScanDelegate(DefaultDelegate):
-    def __init__(self):
+class MyDelegate(DefaultDelegate):
+    def __init__(self, heart_rate_handle, button_handle):
         DefaultDelegate.__init__(self)
+        self.heart_rate_handle = heart_rate_handle
+        self.button_handle = button_handle
 
-    def handleDiscovery(self, dev, isNewDev, isNewData):
-        if isNewDev:
-            print("Discovered device", dev.addr)
-        elif isNewData:
-            print("Received new data from", dev.addr)
+    def handleNotification(self, cHandle, data):
+        if cHandle == self.heart_rate_handle:
+            # 解析心率值
+            bpm = int.from_bytes(data, byteorder='little')
+            print(f"Heart Rate Notification: {bpm} bpm")
+        elif cHandle == self.button_handle:
+            # 解析按钮状态
+            state = "Pressed" if int.from_bytes(data, byteorder='little') == 1 else "Released"
+            print(f"Button Notification: {state}")
 
+def enable_notifications(peripheral, char_uuid):
+    ch = peripheral.getCharacteristics(uuid=char_uuid)[0]
+    print(f"Found characteristic {char_uuid}")
 
-class serviceDelegate(DefaultDelegate):
-    def __init__(self):
-        DefaultDelegate.__init__(self)
+    cccd = ch.getDescriptors(forUUID=UUID(0x2902))[0]
+    print(f"Found CCCD descriptor for characteristic {char_uuid}")
 
-    def handleNotification(self, ch, data):
-        print("Received notification: %s" % data)
+    notification_enable_value = bytes([0x01, 0x00])
+    cccd.write(notification_enable_value, withResponse=True)
+    print(f"Successfully wrote to CCCD to enable notifications for {char_uuid}")
+    return ch.getHandle()
 
-def blink(led, ch):
-    if led==False:
-        ch.write(b'1')
-        led = True
-    else:
-        ch.write(b'0')
-        led = False
-    return led
-
-
-scanner = Scanner().withDelegate(ScanDelegate())
+scanner = Scanner()
 devices = scanner.scan(10.0)
 n = 0
 addr = []
 for dev in devices:
-    print("%d: Device %s (%s), RSSI=%d dB" %
-          (n, dev.addr, dev.addrType, dev.rssi))
+    print(f"{n}: Device {dev.addr} ({dev.addrType}), RSSI={dev.rssi} dB")
     addr.append(dev.addr)
     n += 1
     for (adtype, desc, value) in dev.getScanData():
-        print("  %s = %s" % (desc, value))
-
+        print(f" {desc} = {value}")
 number = input('Enter your device number: ')
-number = int(number)
 print('Device', number)
-print(list(devices)[number].addr)
+num = int(number)
+print(addr[num])
 
 print("Connecting...")
-dev = Peripheral(list(devices)[number].addr, 'random')
-dev.setDelegate(serviceDelegate())
-for service in dev.services:
-    print(str(service))
+dev = Peripheral(addr[num], 'random')
+
+
+hr_handle = enable_notifications(dev, HEART_RATE_MEASUREMENT_CHAR_UUID)
+btn_handle = enable_notifications(dev, BUTTON_STATE_CHARACTERISTIC_UUID)
+
+dev.setDelegate(MyDelegate(hr_handle, btn_handle))
 
 try:
-    BtnService= dev.getServiceByUUID(UUID(0xa000))
-    ch_Btn = dev.getCharacteristics(uuid=UUID(0xa001))[0]
-
-    LEDService= dev.getServiceByUUID(UUID(0xa002))
-    ch_LED = dev.getCharacteristics(uuid=UUID(0xa003))[0]
- 
-    print(ch_Btn.valHandle)
-    cccd = ch_Btn.valHandle + 1
-    
-    if NOTIFIABLE:
-        dev.writeCharacteristic(cccd, bytes([1, 0])) 
-        print("Enable notifications")
-    if INDICATIBLE:
-        dev.writeCharacteristic(cccd, bytes([2, 0]))
-        print("Enable indications")
-    
-    led = False
+    print("Waiting for notifications...")
     while True:
-        led=blink(led, ch_LED)
-        if dev.waitForNotifications(1.0):
-            # handleNotification() was called
-            continue
-        print("Waiting...")
-
+        dev.waitForNotifications(1.0)
+except Exception as e:
+    print(f"An error occurred: {e}")
 finally:
+    print("Disconnecting...")
     dev.disconnect()
